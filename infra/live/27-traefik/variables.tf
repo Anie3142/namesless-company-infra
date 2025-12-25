@@ -9,7 +9,7 @@ variable "aws_region" {
 }
 
 variable "traefik_task_count" {
-  description = "Number of Traefik tasks (2 recommended for HA)"
+  description = "Number of Traefik tasks to run (limited by ENI capacity on small instances)"
   type        = number
-  default     = 2
+  default     = 1  # Reduced to 1 due to ENI limits on t4g.small instances
 }
