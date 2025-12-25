@@ -56,6 +56,15 @@ data "terraform_remote_state" "ecs" {
   }
 }
 
+data "terraform_remote_state" "cloudflare" {
+  backend = "s3"
+  config = {
+    bucket = "nameless-terraform-state"
+    key    = "live/05-cloudflare/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
@@ -184,6 +193,30 @@ resource "aws_efs_access_point" "jenkins" {
 }
 
 # -----------------------------------------------------------------------------
+# SSM Read Policy for Task Execution Role (needed for secrets)
+# -----------------------------------------------------------------------------
+resource "aws_iam_role_policy" "jenkins_ssm_secrets" {
+  name = "${var.project_name}-jenkins-ssm-secrets"
+  role = element(split("/", data.terraform_remote_state.ecs.outputs.task_execution_role_arn), length(split("/", data.terraform_remote_state.ecs.outputs.task_execution_role_arn)) - 1)
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameters",
+          "ssm:GetParameter"
+        ]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/jenkins/*"
+        ]
+      }
+    ]
+  })
+}
+
+# -----------------------------------------------------------------------------
 # Jenkins Task Definition
 # -----------------------------------------------------------------------------
 resource "aws_ecs_task_definition" "jenkins" {
@@ -209,16 +242,27 @@ resource "aws_ecs_task_definition" "jenkins" {
     }
   }
 
+  # Docker socket for Docker-in-Docker builds
+  volume {
+    name      = "docker_socket"
+    host_path = "/var/run/docker.sock"
+  }
+
   container_definitions = jsonencode([
     {
       name      = "jenkins"
-      image     = "jenkins/jenkins:lts-jdk17"
+      # Custom Jenkins image with JCasC + plugins pre-installed
+      image     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/nameless-jenkins:latest"
       essential = true
+      
+      # Run as root to access Docker socket
+      # The Docker socket on the host is owned by root:docker (GID varies)
+      user      = "0:0"
       
       portMappings = [
         {
           containerPort = 8080
-          hostPort      = 0  # Dynamic port mapping
+          hostPort      = 8080  # Static port - used by cloudflared via service discovery
           protocol      = "tcp"
         }
       ]
@@ -227,6 +271,11 @@ resource "aws_ecs_task_definition" "jenkins" {
         {
           sourceVolume  = "jenkins_home"
           containerPath = "/var/jenkins_home"
+          readOnly      = false
+        },
+        {
+          sourceVolume  = "docker_socket"
+          containerPath = "/var/run/docker.sock"
           readOnly      = false
         }
       ]
@@ -237,6 +286,8 @@ resource "aws_ecs_task_definition" "jenkins" {
           value = "-Djenkins.install.runSetupWizard=false -Xmx1g"
         }
       ]
+
+      # No secrets needed for vanilla Jenkins
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -264,88 +315,13 @@ resource "aws_ecs_task_definition" "jenkins" {
 }
 
 # -----------------------------------------------------------------------------
-# Target Group for Jenkins
+# ALB REMOVED - Traffic now routes via Cloudflare Tunnel → Service Discovery
+# Target Group, Listener Rules deleted - saves ~$16/month!
 # -----------------------------------------------------------------------------
-resource "aws_lb_target_group" "jenkins" {
-  name                 = "${var.project_name}-jenkins-tg"
-  port                 = 8080
-  protocol             = "HTTP"
-  vpc_id               = data.terraform_remote_state.network.outputs.vpc_id
-  target_type          = "instance"
-  deregistration_delay = 30
-
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200,403"  # 403 is OK - Jenkins login page
-    path                = "/login"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 10
-    unhealthy_threshold = 3
-  }
-
-  tags = {
-    Name = "${var.project_name}-jenkins-tg"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# ALB Listener Rule for jenkins.namelesscompany.cc
-# -----------------------------------------------------------------------------
-resource "aws_lb_listener_rule" "jenkins" {
-  listener_arn = data.terraform_remote_state.ecs.outputs.http_listener_arn
-  priority     = 90  # Lower priority = higher precedence
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.jenkins.arn
-  }
-
-  condition {
-    host_header {
-      values = [var.jenkins_domain]
-    }
-  }
-
-  tags = {
-    Name = "${var.project_name}-jenkins-rule"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# ALB Listener Rule for webhook.namelesscompany.cc (GitHub webhooks)
-# -----------------------------------------------------------------------------
-resource "aws_lb_listener_rule" "webhook" {
-  listener_arn = data.terraform_remote_state.ecs.outputs.http_listener_arn
-  priority     = 91
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.jenkins.arn
-  }
-
-  condition {
-    host_header {
-      values = [var.webhook_domain]
-    }
-  }
-
-  # Only allow /github-webhook/ path
-  condition {
-    path_pattern {
-      values = ["/github-webhook/*"]
-    }
-  }
-
-  tags = {
-    Name = "${var.project_name}-webhook-rule"
-  }
-}
 
 # -----------------------------------------------------------------------------
 # Jenkins ECS Service (pinned to CI capacity provider)
+# No ALB - accessed via Cloudflare Tunnel → jenkins.nameless.local:8080
 # -----------------------------------------------------------------------------
 resource "aws_ecs_service" "jenkins" {
   name            = "${var.project_name}-jenkins"
@@ -360,11 +336,7 @@ resource "aws_ecs_service" "jenkins" {
     weight            = 100
   }
 
-  load_balancer {
-    target_group_arn = aws_lb_target_group.jenkins.arn
-    container_name   = "jenkins"
-    container_port   = 8080
-  }
+  # NO load_balancer block - traffic via tunnel
 
   deployment_maximum_percent         = 100
   deployment_minimum_healthy_percent = 0
@@ -379,7 +351,6 @@ resource "aws_ecs_service" "jenkins" {
   }
 
   depends_on = [
-    aws_efs_mount_target.jenkins,
-    aws_lb_listener_rule.jenkins
+    aws_efs_mount_target.jenkins
   ]
 }

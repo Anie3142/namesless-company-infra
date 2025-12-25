@@ -64,3 +64,62 @@ module "nat_instance" {
 
   tags = var.tags
 }
+
+# -----------------------------------------------------------------------------
+# Cloud Map Service Discovery Namespace
+# Used for internal VPC DNS resolution (e.g., jenkins.nameless.local)
+# Services register here and cloudflared uses this to route traffic
+# -----------------------------------------------------------------------------
+resource "aws_service_discovery_private_dns_namespace" "main" {
+  name        = "${var.project_name}.local"
+  description = "Private DNS namespace for service discovery"
+  vpc         = module.networking.vpc_id
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-service-discovery-namespace"
+  })
+}
+
+# Jenkins Service Discovery
+resource "aws_service_discovery_service" "jenkins" {
+  name = "jenkins"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_custom_config {
+    failure_threshold = 1
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-jenkins-service-discovery"
+  })
+}
+
+# n8n Service Discovery
+resource "aws_service_discovery_service" "n8n" {
+  name = "n8n"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 60
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-n8n-service-discovery"
+  })
+}

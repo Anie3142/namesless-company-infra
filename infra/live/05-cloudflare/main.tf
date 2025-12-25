@@ -58,7 +58,20 @@ locals {
   account_id = data.aws_ssm_parameter.cloudflare_account_id.value
   domain     = "namelesscompany.cc"
   
-  # ALB DNS (current origin - will be replaced by tunnel later)
+  # Jenkins via Service Discovery (internal VPC DNS)
+  # ALB has been eliminated - cloudflared connects directly to Jenkins
+  jenkins_origin = "http://jenkins.nameless.local:8080"
+  
+  # n8n via Service Discovery (internal VPC DNS)
+  n8n_origin = "http://n8n.nameless.local:5678"
+  
+  # hello-django via Service Discovery (for CI/CD demo)
+  hello_django_origin = "http://hello-django.nameless.local:8000"
+  
+  # Traefik via Service Discovery - routes all app traffic
+  traefik_origin = "http://traefik.nameless.local:80"
+  
+  # ALB DNS (legacy - kept for reference, no longer used)
   alb_dns = var.alb_dns_name
 }
 
@@ -66,28 +79,28 @@ locals {
 # DNS Records
 # -----------------------------------------------------------------------------
 
-# Jenkins UI DNS
+# Jenkins UI DNS - NOW POINTS TO TUNNEL (no ALB!)
 resource "cloudflare_record" "jenkins" {
   zone_id = local.zone_id
   name    = "jenkins"
-  content = local.alb_dns
+  content = "${cloudflare_tunnel.nameless.id}.cfargotunnel.com"
   type    = "CNAME"
   ttl     = 1  # Auto (proxied)
   proxied = true
 
-  comment = "Jenkins CI/CD UI - managed by Terraform"
+  comment = "Jenkins CI/CD UI via Tunnel - managed by Terraform"
 }
 
-# Webhook DNS (separate hostname for GitHub webhooks)
+# Webhook DNS - NOW POINTS TO TUNNEL (no ALB!)
 resource "cloudflare_record" "webhook" {
   zone_id = local.zone_id
   name    = "webhook"
-  content = local.alb_dns
+  content = "${cloudflare_tunnel.nameless.id}.cfargotunnel.com"
   type    = "CNAME"
   ttl     = 1
   proxied = true
 
-  comment = "GitHub webhook endpoint - managed by Terraform"
+  comment = "GitHub webhook via Tunnel - managed by Terraform"
 }
 
 # -----------------------------------------------------------------------------
@@ -144,55 +157,106 @@ resource "aws_ssm_parameter" "tunnel_token" {
 }
 
 # Tunnel configuration (ingress rules)
-# Points to internal ALB - cloudflared runs as separate ECS service
+# Routes directly to services via Service Discovery (no ALB!)
 resource "cloudflare_tunnel_config" "nameless" {
   account_id = local.account_id
   tunnel_id  = cloudflare_tunnel.nameless.id
 
   config {
-    # Jenkins UI - routes to internal ALB
+    # n8n - routes directly to n8n via service discovery
+    ingress_rule {
+      hostname = "n8n.${local.domain}"
+      service  = local.n8n_origin
+    }
+
+    # Jenkins UI - routes directly to Jenkins via service discovery
     ingress_rule {
       hostname = "jenkins.${local.domain}"
-      service  = "http://${local.alb_dns}:80"
-      origin_request {
-        http_host_header = "jenkins.${local.domain}"
-      }
+      service  = local.jenkins_origin
     }
 
     # Jenkins TEST - same routing for testing
     ingress_rule {
       hostname = "jenkins-test.${local.domain}"
-      service  = "http://${local.alb_dns}:80"
-      origin_request {
-        http_host_header = "jenkins.${local.domain}"
-      }
+      service  = local.jenkins_origin
     }
 
-    # Webhook - routes to internal ALB with host header
+    # Webhook - routes directly to Jenkins
     ingress_rule {
       hostname = "webhook.${local.domain}"
       path     = "^/github-webhook(/.*)?$"
-      service  = "http://${local.alb_dns}:80"
-      origin_request {
-        http_host_header = "webhook.${local.domain}"
-      }
+      service  = local.jenkins_origin
     }
 
     # Webhook TEST - same routing for testing
     ingress_rule {
       hostname = "webhook-test.${local.domain}"
       path     = "^/github-webhook(/.*)?$"
-      service  = "http://${local.alb_dns}:80"
-      origin_request {
-        http_host_header = "webhook.${local.domain}"
-      }
+      service  = local.jenkins_origin
     }
 
-    # Catch-all (required)
+    # hello-django API - Demo app for CI/CD testing (keep direct for now)
+    # TODO: Remove this once hello-django is migrated to Traefik labels
+    ingress_rule {
+      hostname = "api.${local.domain}"
+      service  = local.hello_django_origin
+    }
+
+    # ==========================================================================
+    # WILDCARD RULE - Routes all other apps to Traefik (auto-routing)
+    # Apps only need docker labels in their ECS task definitions, no infra edits!
+    # ==========================================================================
+    ingress_rule {
+      hostname = "*.${local.domain}"
+      service  = local.traefik_origin
+    }
+
+    # Catch-all (required - must be last)
     ingress_rule {
       service = "http_status:404"
     }
   }
+}
+
+# n8n DNS - points to Tunnel
+resource "cloudflare_record" "n8n" {
+  zone_id         = local.zone_id
+  name            = "n8n"
+  content         = "${cloudflare_tunnel.nameless.id}.cfargotunnel.com"
+  type            = "CNAME"
+  ttl             = 1
+  proxied         = true
+  allow_overwrite = true  # Record already exists, allow overwrite
+
+  comment = "n8n workflow automation via Tunnel - managed by Terraform"
+}
+
+# API (hello-django) DNS - points to Tunnel
+resource "cloudflare_record" "api" {
+  zone_id = local.zone_id
+  name    = "api"
+  content = "${cloudflare_tunnel.nameless.id}.cfargotunnel.com"
+  type    = "CNAME"
+  ttl     = 1
+  proxied = true
+
+  comment = "API (hello-django demo) via Tunnel - managed by Terraform"
+}
+
+# =============================================================================
+# WILDCARD DNS - Routes all *.namelesscompany.cc to tunnel
+# This enables any new app to work without adding individual DNS records!
+# =============================================================================
+resource "cloudflare_record" "wildcard" {
+  zone_id         = local.zone_id
+  name            = "*"
+  content         = "${cloudflare_tunnel.nameless.id}.cfargotunnel.com"
+  type            = "CNAME"
+  ttl             = 1
+  proxied         = true
+  allow_overwrite = true  # Record already exists, allow overwrite
+
+  comment = "Wildcard DNS - all apps via Tunnel/Traefik - managed by Terraform"
 }
 
 # DNS records pointing to Tunnel (for test first, then production cutover)

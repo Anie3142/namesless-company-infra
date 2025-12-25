@@ -1,0 +1,141 @@
+# =============================================================================
+# Jenkins Configuration as Code (JCasC)
+# Nameless Company CI/CD Platform
+# Uses GitHub OAuth for authentication
+# =============================================================================
+
+jenkins:
+  systemMessage: |
+    🏗️ Nameless Company Jenkins
+    Managed by JCasC - DO NOT configure via UI
+    Login with your GitHub account
+    
+  numExecutors: 2  # Jenkins controller can run builds (for simple jobs)
+  
+  # Security Realm - GitHub OAuth
+  # Users authenticate with their GitHub account
+  securityRealm:
+    github:
+      githubWebUri: "https://github.com"
+      githubApiUri: "https://api.github.com"
+      clientID: "${GITHUB_OAUTH_CLIENT_ID}"
+      clientSecret: "${GITHUB_OAUTH_CLIENT_SECRET}"
+      oauthScopes: "read:org,user:email"
+  
+  # Authorization Strategy - GitHub organization/team based
+  authorizationStrategy:
+    github:
+      adminUserNames: "Anie3142"  # Your GitHub username
+      organizationNames: ""        # Optional: restrict to org members
+      useRepositoryPermissions: false
+      authenticatedUserReadPermission: true
+      authenticatedUserCreateJobPermission: false
+      allowGithubWebHookPermission: true
+      allowCcTrayPermission: false
+      allowAnonymousJobStatusPermission: false
+      allowAnonymousReadPermission: false
+
+  # Remote access security
+  remotingSecurity:
+    enabled: true
+
+  # Global tool installations
+  tool:
+    git:
+      installations:
+        - name: "Default"
+          home: "git"
+
+# -----------------------------------------------------------------------------
+# Unclassified settings
+# -----------------------------------------------------------------------------
+unclassified:
+  # Jenkins URL - IMPORTANT: This fixes the warning!
+  location:
+    url: "https://jenkins.namelesscompany.cc/"
+    adminAddress: "admin@namelesscompany.cc"
+  
+  # Git Plugin Configuration
+  gitSCM:
+    globalConfigName: "Jenkins"
+    globalConfigEmail: "jenkins@namelesscompany.cc"
+    createAccountBasedOnEmail: false
+  
+  # GitHub Plugin - Configure webhook
+  gitHubPluginConfig:
+    configs:
+      - credentialsId: "github-pat"
+        name: "GitHub"
+
+# -----------------------------------------------------------------------------
+# Credentials
+# -----------------------------------------------------------------------------
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          # GitHub Personal Access Token (for API access, webhooks, cloning)
+          - string:
+              scope: GLOBAL
+              id: "github-pat"
+              description: "GitHub Personal Access Token"
+              secret: "${GITHUB_TOKEN}"
+          
+          # AWS Credentials for ECR/ECS (optional - can use instance role instead)
+          - aws:
+              scope: GLOBAL
+              id: "aws-credentials"
+              description: "AWS credentials for ECR/ECS"
+              accessKey: "${AWS_ACCESS_KEY_ID}"
+              secretKey: "${AWS_SECRET_ACCESS_KEY}"
+
+# -----------------------------------------------------------------------------
+# Security Settings
+# -----------------------------------------------------------------------------
+security:
+  # Script approval for pipelines
+  scriptApproval:
+    approvedSignatures:
+      - "method groovy.json.JsonSlurper parseText java.lang.String"
+      - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods getText java.net.URL"
+  
+  # CSRF Protection
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: true
+
+# -----------------------------------------------------------------------------
+# Jobs - Multibranch pipeline for hello-django
+# -----------------------------------------------------------------------------
+jobs:
+  - script: |
+      // Seed job that creates multibranch pipelines for our apps
+      multibranchPipelineJob('hello-django') {
+        displayName('Hello Django - Demo App')
+        description('CI/CD Pipeline for hello-django demo application')
+        
+        branchSources {
+          github {
+            id('hello-django-github')
+            repoOwner('Anie3142')
+            repository('hello-django')
+            credentialsId('github-pat')
+            buildForkPRHead(false)
+            buildForkPRMerge(false)
+            buildOriginBranch(true)
+            buildOriginBranchWithPR(false)
+            buildOriginPRHead(false)
+            buildOriginPRMerge(true)
+          }
+        }
+        
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(20)
+          }
+        }
+        
+        triggers {
+          periodic(1)
+        }
+      }

@@ -41,3 +41,24 @@ output "azs" {
   description = "Availability zones used"
   value       = module.networking.azs
 }
+
+# Service Discovery outputs
+output "service_discovery_namespace_id" {
+  description = "ID of the Cloud Map service discovery namespace"
+  value       = aws_service_discovery_private_dns_namespace.main.id
+}
+
+output "service_discovery_namespace_name" {
+  description = "Name of the Cloud Map service discovery namespace"
+  value       = aws_service_discovery_private_dns_namespace.main.name
+}
+
+output "service_discovery_jenkins_service_id" {
+  description = "ID of the Jenkins service discovery service"
+  value       = aws_service_discovery_service.jenkins.id
+}
+
+output "service_discovery_n8n_service_id" {
+  description = "ID of the n8n service discovery service"
+  value       = aws_service_discovery_service.n8n.id
+}

@@ -1,0 +1,80 @@
+# =============================================================================
+# Nameless Company Jenkins - JCasC Configuration
+# Includes Job DSL for automatic pipeline creation
+# =============================================================================
+
+jenkins:
+  systemMessage: "🏗️ Nameless Company Jenkins CI/CD - Managed by JCasC"
+  numExecutors: 2
+  
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${JENKINS_ADMIN_PASSWORD:-changeme}"
+  
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    url: "https://jenkins.namelesscompany.cc/"
+    adminAddress: "admin@namelesscompany.cc"
+  
+  gitSCM:
+    globalConfigName: "Jenkins"
+    globalConfigEmail: "jenkins@namelesscompany.cc"
+
+# -----------------------------------------------------------------------------
+# Credentials - GitHub PAT for cloning private repos
+# Secrets are injected via environment variables from SSM Parameter Store
+# -----------------------------------------------------------------------------
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-credentials"
+              description: "GitHub credentials for repo access"
+              username: "${GITHUB_USERNAME:-github-user}"
+              password: "${GITHUB_TOKEN:-change-me-in-ssm}"
+
+# -----------------------------------------------------------------------------
+# Job DSL - Automatically create Multibranch Pipeline for hello-django
+# -----------------------------------------------------------------------------
+jobs:
+  - script: |
+      multibranchPipelineJob('hello-django') {
+        displayName('Hello Django - Demo App')
+        description('CI/CD Pipeline for hello-django demo application')
+        
+        branchSources {
+          git {
+            id('hello-django-git')
+            remote('https://github.com/Anie3142/hello-django.git')
+            credentialsId('github-credentials')
+            includes('*')
+          }
+        }
+        
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(10)
+          }
+        }
+        
+        triggers {
+          periodicFolderTrigger {
+            interval('1h')
+          }
+        }
+        
+        factory {
+          workflowBranchProjectFactory {
+            scriptPath('Jenkinsfile')
+          }
+        }
+      }

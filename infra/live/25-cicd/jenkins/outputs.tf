@@ -17,10 +17,8 @@ output "efs_file_system_id" {
   value       = aws_efs_file_system.jenkins.id
 }
 
-output "jenkins_target_group_arn" {
-  description = "Jenkins target group ARN"
-  value       = aws_lb_target_group.jenkins.arn
-}
+# ALB removed - Jenkins now accessed via Cloudflare Tunnel → Service Discovery
+# output "jenkins_target_group_arn" removed
 
 output "jenkins_service_name" {
   description = "Jenkins ECS service name"

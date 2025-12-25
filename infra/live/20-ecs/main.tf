@@ -161,7 +161,7 @@ resource "aws_security_group" "ecs_ci" {
 resource "aws_launch_template" "ecs_ci" {
   name_prefix   = "${var.project_name}-ecs-ci-"
   image_id      = data.aws_ssm_parameter.ecs_ami_ci.value
-  instance_type = var.ecs_instance_type  # Same as apps for now
+  instance_type = var.ecs_ci_instance_type  # t4g.medium for Jenkins
 
   iam_instance_profile {
     arn = module.ecs_ec2_cluster.ecs_instance_profile_arn

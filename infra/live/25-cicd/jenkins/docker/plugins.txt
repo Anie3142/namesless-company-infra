@@ -1,0 +1,32 @@
+# Jenkins plugins for CI/CD pipeline
+# Minimal set - JCasC + Pipeline essentials
+
+# Configuration as Code (REQUIRED)
+configuration-as-code
+
+# Job DSL (REQUIRED for automatic job creation)
+job-dsl
+
+# Pipeline (REQUIRED for CI/CD)
+workflow-aggregator
+pipeline-stage-view
+pipeline-utility-steps
+
+# Git (REQUIRED for source control)
+git
+github
+github-branch-source
+credentials-binding
+
+# Docker for building images
+docker-plugin
+docker-workflow
+
+# AWS for ECR/ECS integration
+aws-credentials
+amazon-ecr
+
+# Utility
+timestamper
+ansicolor
+ws-cleanup

@@ -36,3 +36,13 @@ output "webhook_test_url" {
   description = "Webhook test URL via Tunnel (when enabled)"
   value       = var.enable_tunnel_test ? "https://webhook-test.namelesscompany.cc/github-webhook/" : "Tunnel test not enabled"
 }
+
+output "cloudflared_security_group_id" {
+  description = "Security group ID for cloudflared tunnel connector"
+  value       = aws_security_group.cloudflared.id
+}
+
+output "n8n_url" {
+  description = "n8n URL via Tunnel"
+  value       = "https://n8n.namelesscompany.cc"
+}
