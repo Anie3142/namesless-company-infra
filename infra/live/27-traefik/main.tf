@@ -277,6 +277,7 @@ resource "aws_ecs_task_definition" "traefik" {
         "--entrypoints.traefik.address=:8080",
         "--api.dashboard=true",
         "--api.insecure=true",
+        "--ping=true",
         "--providers.ecs.clusters=${local.cluster_name}",
         "--providers.ecs.region=${data.aws_region.current.name}",
         "--providers.ecs.exposedByDefault=false",
@@ -299,13 +300,14 @@ resource "aws_ecs_task_definition" "traefik" {
         }
       ]
 
-      # Health check
+      # Health check - use wget to check the API endpoint
+      # The traefik healthcheck command requires additional config
       healthCheck = {
-        command     = ["CMD", "traefik", "healthcheck"]
+        command     = ["CMD-SHELL", "wget --spider -q http://localhost:8080/api/overview || exit 1"]
         interval    = 30
         timeout     = 5
         retries     = 3
-        startPeriod = 15
+        startPeriod = 30
       }
 
       logConfiguration = {
