@@ -451,7 +451,8 @@ resource "aws_ecs_service" "cloudflared" {
 
 # =============================================================================
 # Cloudflare Pages Project - Frontend App Hosting
-# GitHub OAuth has been authorized - now using full GitHub integration
+# NOTE: GitHub connection must be done via Cloudflare Dashboard GUI
+# The terraform provider doesn't reliably establish Git connections
 # =============================================================================
 
 resource "cloudflare_pages_project" "personal_finance_fe" {
@@ -466,18 +467,12 @@ resource "cloudflare_pages_project" "personal_finance_fe" {
     root_dir        = "/"
   }
 
-  # GitHub source - OAuth has been authorized
-  source {
-    type = "github"
-    config {
-      owner                         = "Anie3142"
-      repo_name                     = "personal-finance-fe"
-      production_branch             = "main"
-      pr_comments_enabled           = true
-      deployments_enabled           = true
-      production_deployment_enabled = true
-      preview_deployment_setting    = "all"
-    }
+  # GitHub connection is managed via Cloudflare Dashboard
+  # Steps: Click project → Settings → Builds & deployments → Connect to Git
+  # Select: GitHub → Anie3142/personal-finance-fe → main branch
+  
+  lifecycle {
+    ignore_changes = [source]  # Don't override manual Git connection
   }
 }
 
