@@ -486,21 +486,22 @@ resource "cloudflare_pages_project" "personal_finance_fe" {
   }
 }
 
-# Custom domain for Pages
+# Custom domain for Pages - Frontend at personal-finance.namelesscompany.cc
 resource "cloudflare_pages_domain" "personal_finance_fe" {
   account_id   = local.account_id
   project_name = cloudflare_pages_project.personal_finance_fe.name
-  domain       = "app.${local.domain}"
+  domain       = "personal-finance.${local.domain}"
 }
 
-# DNS record pointing to Pages
-resource "cloudflare_record" "app" {
-  zone_id = local.zone_id
-  name    = "app"
-  content = cloudflare_pages_project.personal_finance_fe.subdomain
-  type    = "CNAME"
-  ttl     = 1
-  proxied = true
+# DNS record pointing to Pages (frontend)
+resource "cloudflare_record" "personal_finance" {
+  zone_id         = local.zone_id
+  name            = "personal-finance"
+  content         = cloudflare_pages_project.personal_finance_fe.subdomain
+  type            = "CNAME"
+  ttl             = 1
+  proxied         = true
+  allow_overwrite = true
 
-  comment = "Frontend app via Cloudflare Pages - managed by Terraform"
+  comment = "Personal Finance frontend via Cloudflare Pages - managed by Terraform"
 }
