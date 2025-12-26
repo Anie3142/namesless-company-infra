@@ -466,6 +466,20 @@ resource "cloudflare_pages_project" "personal_finance_fe" {
     root_dir        = "/"
   }
 
+  # Environment variables for production build
+  deployment_configs {
+    production {
+      environment_variables = {
+        VITE_API_BASE_URL = "https://api.personal-finance.namelesscompany.cc"
+      }
+    }
+    preview {
+      environment_variables = {
+        VITE_API_BASE_URL = "https://api.personal-finance.namelesscompany.cc"
+      }
+    }
+  }
+
   # GitHub source - auto-deploys on push to main
   source {
     type = "github"
