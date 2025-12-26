@@ -448,3 +448,52 @@ resource "aws_ecs_service" "cloudflared" {
     Name = "nameless-cloudflared-service"
   }
 }
+
+# =============================================================================
+# Cloudflare Pages Project - Frontend App Hosting
+# =============================================================================
+
+resource "cloudflare_pages_project" "personal_finance_fe" {
+  account_id        = local.account_id
+  name              = "personal-finance-fe"
+  production_branch = "main"
+
+  build_config {
+    build_caching   = true
+    build_command   = "npm run build"
+    destination_dir = "dist"
+    root_dir        = "/"
+  }
+
+  source {
+    type = "github"
+    config {
+      owner                         = "Anie3142"
+      repo_name                     = "personal-finance-fe"
+      production_branch             = "main"
+      pr_comments_enabled           = true
+      deployments_enabled           = true
+      production_deployments_enabled = true
+      preview_deployment_setting    = "all"
+    }
+  }
+}
+
+# Custom domain for Pages
+resource "cloudflare_pages_domain" "personal_finance_fe" {
+  account_id   = local.account_id
+  project_name = cloudflare_pages_project.personal_finance_fe.name
+  domain       = "app.${local.domain}"
+}
+
+# DNS record pointing to Pages
+resource "cloudflare_record" "app" {
+  zone_id = local.zone_id
+  name    = "app"
+  content = cloudflare_pages_project.personal_finance_fe.subdomain
+  type    = "CNAME"
+  ttl     = 1
+  proxied = true
+
+  comment = "Frontend app via Cloudflare Pages - managed by Terraform"
+}

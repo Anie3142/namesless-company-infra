@@ -110,6 +110,8 @@ security:
 jobs:
   - script: |
       // Seed job that creates multibranch pipelines for our apps
+      
+      // Hello Django - Demo App
       multibranchPipelineJob('hello-django') {
         displayName('Hello Django - Demo App')
         description('CI/CD Pipeline for hello-django demo application')
@@ -132,6 +134,68 @@ jobs:
         orphanedItemStrategy {
           discardOldItems {
             numToKeep(20)
+          }
+        }
+        
+        triggers {
+          periodic(1)
+        }
+      }
+      
+      // Personal Finance Backend - Production App
+      multibranchPipelineJob('personal-finance-be') {
+        displayName('Personal Finance - Backend API')
+        description('CI/CD Pipeline for Personal Finance backend application')
+        
+        branchSources {
+          github {
+            id('personal-finance-be-github')
+            repoOwner('Anie3142')
+            repository('personal-finance-be')
+            credentialsId('github-pat')
+            buildForkPRHead(false)
+            buildForkPRMerge(false)
+            buildOriginBranch(true)
+            buildOriginBranchWithPR(false)
+            buildOriginPRHead(false)
+            buildOriginPRMerge(true)
+          }
+        }
+        
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(20)
+          }
+        }
+        
+        triggers {
+          periodic(1)
+        }
+      }
+      
+      // Template Backend App - for creating new backend projects
+      multibranchPipelineJob('template-be-app') {
+        displayName('Template Backend App')
+        description('Template CI/CD Pipeline for backend applications')
+        
+        branchSources {
+          github {
+            id('template-be-app-github')
+            repoOwner('Anie3142')
+            repository('template-be-app')
+            credentialsId('github-pat')
+            buildForkPRHead(false)
+            buildForkPRMerge(false)
+            buildOriginBranch(true)
+            buildOriginBranchWithPR(false)
+            buildOriginPRHead(false)
+            buildOriginPRMerge(true)
+          }
+        }
+        
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(10)
           }
         }
         
