@@ -519,3 +519,17 @@ resource "cloudflare_record" "personal_finance" {
 
   comment = "Personal Finance frontend via Cloudflare Pages - managed by Terraform"
 }
+
+# DNS record for backend API (multi-level subdomain needs explicit record)
+# Wildcard *.namelesscompany.cc only covers ONE level, not api.personal-finance
+resource "cloudflare_record" "personal_finance_api" {
+  zone_id         = local.zone_id
+  name            = "api.personal-finance"
+  content         = "${cloudflare_tunnel.nameless.id}.cfargotunnel.com"
+  type            = "CNAME"
+  ttl             = 1
+  proxied         = true
+  allow_overwrite = true
+
+  comment = "Personal Finance backend API via Tunnel/Traefik - managed by Terraform"
+}
