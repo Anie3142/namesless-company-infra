@@ -451,8 +451,14 @@ resource "aws_ecs_service" "cloudflared" {
 
 # =============================================================================
 # Cloudflare Pages Project - Frontend App Hosting
+# NOTE: GitHub integration must be set up manually in Cloudflare Dashboard first:
+# 1. Go to dash.cloudflare.com → Pages → Create project → Connect to Git → GitHub
+# 2. Authorize Cloudflare to access your GitHub account
+# 3. Then this terraform can manage the project configuration
 # =============================================================================
 
+# For now, create Pages project WITHOUT GitHub source (Direct Upload mode)
+# After first manual deployment, add GitHub source via dashboard
 resource "cloudflare_pages_project" "personal_finance_fe" {
   account_id        = local.account_id
   name              = "personal-finance-fe"
@@ -465,18 +471,20 @@ resource "cloudflare_pages_project" "personal_finance_fe" {
     root_dir        = "/"
   }
 
-  source {
-    type = "github"
-    config {
-      owner                         = "Anie3142"
-      repo_name                     = "personal-finance-fe"
-      production_branch             = "main"
-      pr_comments_enabled           = true
-      deployments_enabled           = true
-      production_deployments_enabled = true
-      preview_deployment_setting    = "all"
-    }
-  }
+  # GitHub source requires manual OAuth setup first in Cloudflare Dashboard
+  # Once connected, uncomment this block:
+  # source {
+  #   type = "github"
+  #   config {
+  #     owner                         = "Anie3142"
+  #     repo_name                     = "personal-finance-fe"
+  #     production_branch             = "main"
+  #     pr_comments_enabled           = true
+  #     deployments_enabled           = true
+  #     production_deployment_enabled = true
+  #     preview_deployment_setting    = "all"
+  #   }
+  # }
 }
 
 # Custom domain for Pages
