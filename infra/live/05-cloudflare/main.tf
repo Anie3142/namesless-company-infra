@@ -470,12 +470,18 @@ resource "cloudflare_pages_project" "personal_finance_fe" {
   deployment_configs {
     production {
       environment_variables = {
-        VITE_API_BASE_URL = "https://api.personal-finance.namelesscompany.cc"
+        VITE_API_BASE_URL                = "https://api.personal-finance.namelesscompany.cc"
+        NEXT_PUBLIC_AUTH0_DOMAIN         = "dev-54nxe440ro81hlb6.us.auth0.com"
+        NEXT_PUBLIC_AUTH0_CLIENT_ID      = "SM3sFfXc1ntYVIeWY1g16pVnuSsYUI7k"
+        NEXT_PUBLIC_AUTH0_REDIRECT_URI   = "https://personal-finance.namelesscompany.cc"
       }
     }
     preview {
       environment_variables = {
-        VITE_API_BASE_URL = "https://api.personal-finance.namelesscompany.cc"
+        VITE_API_BASE_URL                = "https://api.personal-finance.namelesscompany.cc"
+        NEXT_PUBLIC_AUTH0_DOMAIN         = "dev-54nxe440ro81hlb6.us.auth0.com"
+        NEXT_PUBLIC_AUTH0_CLIENT_ID      = "SM3sFfXc1ntYVIeWY1g16pVnuSsYUI7k"
+        NEXT_PUBLIC_AUTH0_REDIRECT_URI   = "https://personal-finance.namelesscompany.cc"
       }
     }
   }
