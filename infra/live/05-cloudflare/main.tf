@@ -461,8 +461,8 @@ resource "cloudflare_pages_project" "personal_finance_fe" {
 
   build_config {
     build_caching   = true
-    build_command   = "npm run build:cloudflare"
-    destination_dir = ".open-next/assets"
+    build_command   = "npm run build"
+    destination_dir = "out"
     root_dir        = "/"
   }
 
