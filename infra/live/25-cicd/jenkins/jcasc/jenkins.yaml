@@ -88,6 +88,20 @@ credentials:
               description: "AWS credentials for ECR/ECS"
               accessKey: "${AWS_ACCESS_KEY_ID}"
               secretKey: "${AWS_SECRET_ACCESS_KEY}"
+          
+          # Cloudflare API Token for Workers deployment
+          - string:
+              scope: GLOBAL
+              id: "cloudflare-api-token"
+              description: "Cloudflare API Token for Workers deployment"
+              secret: "${CLOUDFLARE_API_TOKEN}"
+          
+          # Cloudflare Account ID
+          - string:
+              scope: GLOBAL
+              id: "cloudflare-account-id"
+              description: "Cloudflare Account ID"
+              secret: "${CLOUDFLARE_ACCOUNT_ID}"
 
 # -----------------------------------------------------------------------------
 # Security Settings
@@ -196,6 +210,37 @@ jobs:
         orphanedItemStrategy {
           discardOldItems {
             numToKeep(10)
+          }
+        }
+        
+        triggers {
+          periodic(1)
+        }
+      }
+      
+      // Personal Finance Frontend - Next.js on Cloudflare Workers
+      multibranchPipelineJob('personal-finance-fe') {
+        displayName('Personal Finance - Frontend')
+        description('CI/CD Pipeline for Personal Finance Next.js frontend - deploys to Cloudflare Workers')
+        
+        branchSources {
+          github {
+            id('personal-finance-fe-github')
+            repoOwner('Anie3142')
+            repository('personal-finance-fe')
+            credentialsId('github-pat')
+            buildForkPRHead(false)
+            buildForkPRMerge(false)
+            buildOriginBranch(true)
+            buildOriginBranchWithPR(false)
+            buildOriginPRHead(false)
+            buildOriginPRMerge(true)
+          }
+        }
+        
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(20)
           }
         }
         

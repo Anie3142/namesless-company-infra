@@ -170,19 +170,20 @@ resource "aws_iam_role_policy" "jenkins_efs" {
 }
 
 # EFS Access Point for Jenkins
+# NOTE: Using root (0:0) because container runs as root for Docker socket access
 resource "aws_efs_access_point" "jenkins" {
   file_system_id = aws_efs_file_system.jenkins.id
 
   posix_user {
-    gid = 1000
-    uid = 1000
+    gid = 0
+    uid = 0
   }
 
   root_directory {
     path = "/jenkins_home"
     creation_info {
-      owner_gid   = 1000
-      owner_uid   = 1000
+      owner_gid   = 0
+      owner_uid   = 0
       permissions = "755"
     }
   }
@@ -209,7 +210,8 @@ resource "aws_iam_role_policy" "jenkins_ssm_secrets" {
           "ssm:GetParameter"
         ]
         Resource = [
-          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/jenkins/*"
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/jenkins/*",
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/cloudflare/*"
         ]
       }
     ]
@@ -226,8 +228,8 @@ resource "aws_ecs_task_definition" "jenkins" {
   execution_role_arn       = data.terraform_remote_state.ecs.outputs.task_execution_role_arn
   task_role_arn            = aws_iam_role.jenkins_task.arn
   
-  cpu    = 1024  # 1 vCPU
-  memory = 1536  # 1.5GB
+  cpu    = 2048  # 2 vCPU
+  memory = 3072  # 3GB
 
   volume {
     name = "jenkins_home"
@@ -283,11 +285,43 @@ resource "aws_ecs_task_definition" "jenkins" {
       environment = [
         {
           name  = "JAVA_OPTS"
-          value = "-Djenkins.install.runSetupWizard=false -Xmx1g"
+          value = "-Djenkins.install.runSetupWizard=false -Xmx2g"
+        },
+        {
+          # Use the config from Docker image, not the stale EFS copy
+          name  = "CASC_JENKINS_CONFIG"
+          value = "/usr/share/jenkins/ref/jenkins.yaml"
+        },
+        {
+          # Admin password for local user authentication
+          name  = "JENKINS_ADMIN_PASSWORD"
+          value = "admin123"
         }
       ]
 
-      # No secrets needed for vanilla Jenkins
+      # Secrets from SSM Parameter Store for GitHub OAuth and API access
+      secrets = [
+        {
+          name      = "GITHUB_OAUTH_CLIENT_ID"
+          valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/jenkins/github-oauth-client-id"
+        },
+        {
+          name      = "GITHUB_OAUTH_CLIENT_SECRET"
+          valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/jenkins/github-oauth-client-secret"
+        },
+        {
+          name      = "GITHUB_TOKEN"
+          valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/jenkins/github-token"
+        },
+        {
+          name      = "CLOUDFLARE_API_TOKEN"
+          valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/cloudflare/api-token"
+        },
+        {
+          name      = "CLOUDFLARE_ACCOUNT_ID"
+          valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/nameless/cloudflare/account-id"
+        }
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
