@@ -39,12 +39,14 @@ jenkins:
   remotingSecurity:
     enabled: true
 
-  # Global tool installations
-  tool:
-    git:
-      installations:
-        - name: "Default"
-          home: "git"
+# -----------------------------------------------------------------------------
+# Global Tool Configuration (at root level, not under jenkins)
+# -----------------------------------------------------------------------------
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
 
 # -----------------------------------------------------------------------------
 # Unclassified settings
@@ -75,19 +77,27 @@ credentials:
     domainCredentials:
       - credentials:
           # GitHub Personal Access Token (for API access, webhooks, cloning)
-          - string:
+          # Using usernamePassword type for better GitHub branch source compatibility
+          - usernamePassword:
               scope: GLOBAL
               id: "github-pat"
               description: "GitHub Personal Access Token"
-              secret: "${GITHUB_TOKEN}"
+              username: "Anie3142"
+              password: "${GITHUB_TOKEN}"
           
-          # AWS Credentials for ECR/ECS (optional - can use instance role instead)
-          - aws:
+          # Cloudflare API Token for Workers deployment
+          - string:
               scope: GLOBAL
-              id: "aws-credentials"
-              description: "AWS credentials for ECR/ECS"
-              accessKey: "${AWS_ACCESS_KEY_ID}"
-              secretKey: "${AWS_SECRET_ACCESS_KEY}"
+              id: "cloudflare-api-token"
+              description: "Cloudflare API Token for Workers deployment"
+              secret: "${CLOUDFLARE_API_TOKEN}"
+          
+          # Cloudflare Account ID
+          - string:
+              scope: GLOBAL
+              id: "cloudflare-account-id"
+              description: "Cloudflare Account ID"
+              secret: "${CLOUDFLARE_ACCOUNT_ID}"
 
 # -----------------------------------------------------------------------------
 # Security Settings
@@ -98,14 +108,10 @@ security:
     approvedSignatures:
       - "method groovy.json.JsonSlurper parseText java.lang.String"
       - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods getText java.net.URL"
-  
-  # CSRF Protection
-  crumbIssuer:
-    standard:
-      excludeClientIPFromCrumb: true
 
 # -----------------------------------------------------------------------------
-# Jobs - Multibranch pipeline for hello-django
+# Jobs - Multibranch pipeline jobs via Job DSL
+# Using scanCredentialsId() for GitHub branch source credentials
 # -----------------------------------------------------------------------------
 jobs:
   - script: |
@@ -121,7 +127,7 @@ jobs:
             id('hello-django-github')
             repoOwner('Anie3142')
             repository('hello-django')
-            credentialsId('github-pat')
+            scanCredentialsId('github-pat')
             buildForkPRHead(false)
             buildForkPRMerge(false)
             buildOriginBranch(true)
@@ -135,10 +141,6 @@ jobs:
           discardOldItems {
             numToKeep(20)
           }
-        }
-        
-        triggers {
-          periodic(1)
         }
       }
       
@@ -152,7 +154,7 @@ jobs:
             id('personal-finance-be-github')
             repoOwner('Anie3142')
             repository('personal-finance-be')
-            credentialsId('github-pat')
+            scanCredentialsId('github-pat')
             buildForkPRHead(false)
             buildForkPRMerge(false)
             buildOriginBranch(true)
@@ -167,10 +169,6 @@ jobs:
             numToKeep(20)
           }
         }
-        
-        triggers {
-          periodic(1)
-        }
       }
       
       // Template Backend App - for creating new backend projects
@@ -183,7 +181,7 @@ jobs:
             id('template-be-app-github')
             repoOwner('Anie3142')
             repository('template-be-app')
-            credentialsId('github-pat')
+            scanCredentialsId('github-pat')
             buildForkPRHead(false)
             buildForkPRMerge(false)
             buildOriginBranch(true)
@@ -198,8 +196,31 @@ jobs:
             numToKeep(10)
           }
         }
+      }
+      
+      // Personal Finance Frontend - Next.js on Cloudflare Workers
+      multibranchPipelineJob('personal-finance-fe') {
+        displayName('Personal Finance - Frontend')
+        description('CI/CD Pipeline for Personal Finance Next.js frontend - deploys to Cloudflare Workers')
         
-        triggers {
-          periodic(1)
+        branchSources {
+          github {
+            id('personal-finance-fe-github')
+            repoOwner('Anie3142')
+            repository('personal-finance-fe')
+            scanCredentialsId('github-pat')
+            buildForkPRHead(false)
+            buildForkPRMerge(false)
+            buildOriginBranch(true)
+            buildOriginBranchWithPR(false)
+            buildOriginPRHead(false)
+            buildOriginPRMerge(true)
+          }
+        }
+        
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(20)
+          }
         }
       }
