@@ -157,54 +157,19 @@ resource "aws_ssm_parameter" "tunnel_token" {
 }
 
 # Tunnel configuration (ingress rules)
-# Routes directly to services via Service Discovery (no ALB!)
+# SIMPLIFIED: Single wildcard routes ALL traffic to Traefik for auto-discovery
+# Services only need:
+#   1. Traefik docker labels in their ECS task definition
+#   2. Security group rule allowing Traefik SG → Service port
 resource "cloudflare_tunnel_config" "nameless" {
   account_id = local.account_id
   tunnel_id  = cloudflare_tunnel.nameless.id
 
   config {
-    # n8n - routes directly to n8n via service discovery
-    ingress_rule {
-      hostname = "n8n.${local.domain}"
-      service  = local.n8n_origin
-    }
-
-    # Jenkins UI - routes directly to Jenkins via service discovery
-    ingress_rule {
-      hostname = "jenkins.${local.domain}"
-      service  = local.jenkins_origin
-    }
-
-    # Jenkins TEST - same routing for testing
-    ingress_rule {
-      hostname = "jenkins-test.${local.domain}"
-      service  = local.jenkins_origin
-    }
-
-    # Webhook - routes directly to Jenkins
-    ingress_rule {
-      hostname = "webhook.${local.domain}"
-      path     = "^/github-webhook(/.*)?$"
-      service  = local.jenkins_origin
-    }
-
-    # Webhook TEST - same routing for testing
-    ingress_rule {
-      hostname = "webhook-test.${local.domain}"
-      path     = "^/github-webhook(/.*)?$"
-      service  = local.jenkins_origin
-    }
-
-    # hello-django API - Demo app for CI/CD testing (keep direct for now)
-    # TODO: Remove this once hello-django is migrated to Traefik labels
-    ingress_rule {
-      hostname = "api.${local.domain}"
-      service  = local.hello_django_origin
-    }
-
     # ==========================================================================
-    # WILDCARD RULE - Routes all other apps to Traefik (auto-routing)
-    # Apps only need docker labels in their ECS task definitions, no infra edits!
+    # WILDCARD RULE - Routes ALL *.namelesscompany.cc to Traefik
+    # Traefik auto-discovers services via ECS provider and routes by Host header
+    # No manual edits needed when adding new services!
     # ==========================================================================
     ingress_rule {
       hostname = "*.${local.domain}"
@@ -450,87 +415,19 @@ resource "aws_ecs_service" "cloudflared" {
 }
 
 # =============================================================================
-# Cloudflare Pages Project - Frontend App Hosting
-# GitHub integration is active and managed by terraform
+# FRONTEND: personal-finance-fe
+# Deployed via Jenkins → Cloudflare Workers (using wrangler deploy)
+# Custom domain binding managed by Workers via wrangler.toml custom_domain
 # =============================================================================
+# NOTE: Pages project removed - Jenkins builds and deploys to Workers instead
+# The wrangler.toml file has custom_domain = true which creates the DNS record
+# Required API Token Permission: Zone > Workers Routes > Edit
 
-resource "cloudflare_pages_project" "personal_finance_fe" {
-  account_id        = local.account_id
-  name              = "personal-finance-fe"
-  production_branch = "main"
-
-  build_config {
-    build_caching   = true
-    build_command   = "npm run build"
-    destination_dir = "out"
-    root_dir        = "/"
-  }
-
-  # Environment variables for production build
-  deployment_configs {
-    production {
-      environment_variables = {
-        VITE_API_BASE_URL                = "https://api.personal-finance.namelesscompany.cc"
-        NEXT_PUBLIC_AUTH0_DOMAIN         = "dev-54nxe440ro81hlb6.us.auth0.com"
-        NEXT_PUBLIC_AUTH0_CLIENT_ID      = "SM3sFfXc1ntYVIeWY1g16pVnuSsYUI7k"
-        NEXT_PUBLIC_AUTH0_REDIRECT_URI   = "https://personal-finance.namelesscompany.cc"
-      }
-    }
-    preview {
-      environment_variables = {
-        VITE_API_BASE_URL                = "https://api.personal-finance.namelesscompany.cc"
-        NEXT_PUBLIC_AUTH0_DOMAIN         = "dev-54nxe440ro81hlb6.us.auth0.com"
-        NEXT_PUBLIC_AUTH0_CLIENT_ID      = "SM3sFfXc1ntYVIeWY1g16pVnuSsYUI7k"
-        NEXT_PUBLIC_AUTH0_REDIRECT_URI   = "https://personal-finance.namelesscompany.cc"
-      }
-    }
-  }
-
-  # GitHub source - auto-deploys on push to main
-  source {
-    type = "github"
-    config {
-      owner                         = "Anie3142"
-      repo_name                     = "personal-finance-fe"
-      production_branch             = "main"
-      pr_comments_enabled           = true
-      deployments_enabled           = true
-      production_deployment_enabled = true
-      preview_deployment_setting    = "all"
-    }
-  }
-
-  # Preserve manual GUI changes to source configuration
-  lifecycle {
-    ignore_changes = [source]
-  }
-}
-
-# Custom domain for Pages - Frontend at personal-finance.namelesscompany.cc
-resource "cloudflare_pages_domain" "personal_finance_fe" {
-  account_id   = local.account_id
-  project_name = cloudflare_pages_project.personal_finance_fe.name
-  domain       = "personal-finance.${local.domain}"
-}
-
-# DNS record pointing to Pages (frontend)
-resource "cloudflare_record" "personal_finance" {
-  zone_id         = local.zone_id
-  name            = "personal-finance"
-  content         = cloudflare_pages_project.personal_finance_fe.subdomain
-  type            = "CNAME"
-  ttl             = 1
-  proxied         = true
-  allow_overwrite = true
-
-  comment = "Personal Finance frontend via Cloudflare Pages - managed by Terraform"
-}
-
-# DNS record for backend API (multi-level subdomain needs explicit record)
-# Wildcard *.namelesscompany.cc only covers ONE level, not api.personal-finance
+# DNS record for backend API
+# Using single-level subdomain for Cloudflare Universal SSL compatibility
 resource "cloudflare_record" "personal_finance_api" {
   zone_id         = local.zone_id
-  name            = "api.personal-finance"
+  name            = "personal-finance-api"
   content         = "${cloudflare_tunnel.nameless.id}.cfargotunnel.com"
   type            = "CNAME"
   ttl             = 1
