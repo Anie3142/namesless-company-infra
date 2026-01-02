@@ -55,3 +55,28 @@ output "connection_info" {
   }
   sensitive = true
 }
+
+# App-specific DATABASE_URL SSM parameters
+output "app_database_url_ssm_parameters" {
+  description = "SSM parameter names for each app's DATABASE_URL"
+  value = {
+    for app_name, param in aws_ssm_parameter.app_database_urls : app_name => param.name
+  }
+}
+
+output "app_database_url_ssm_arns" {
+  description = "SSM parameter ARNs for each app's DATABASE_URL (use in ECS task secrets)"
+  value = {
+    for app_name, param in aws_ssm_parameter.app_database_urls : app_name => param.arn
+  }
+}
+
+output "n8n_database_url_ssm_parameter" {
+  description = "SSM parameter name for n8n DATABASE_URL"
+  value       = aws_ssm_parameter.n8n_database_url.name
+}
+
+output "n8n_database_url_ssm_arn" {
+  description = "SSM parameter ARN for n8n DATABASE_URL"
+  value       = aws_ssm_parameter.n8n_database_url.arn
+}

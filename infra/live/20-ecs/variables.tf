@@ -23,13 +23,13 @@ variable "enable_container_insights" {
 variable "ecs_instance_type" {
   description = "EC2 instance type for ECS cluster"
   type        = string
-  default     = "t4g.small"  # ~$12/month, ARM-based, 2GB RAM
+  default     = "t3.small"  # ~$15/month, x86-based, 2GB RAM (easier local dev builds)
 }
 
 variable "ecs_ci_instance_type" {
   description = "EC2 instance type for CI capacity provider (Jenkins)"
   type        = string
-  default     = "t4g.medium"  # ~$24/month, ARM-based, 4GB RAM (needed for Jenkins + JCasC)
+  default     = "t3.medium"  # ~$30/month, x86-based, 4GB RAM (needed for Jenkins + JCasC)
 }
 
 variable "tags" {

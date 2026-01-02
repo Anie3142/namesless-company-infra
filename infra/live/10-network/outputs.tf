@@ -54,11 +54,11 @@ output "service_discovery_namespace_name" {
 }
 
 output "service_discovery_jenkins_service_id" {
-  description = "ID of the Jenkins service discovery service"
-  value       = aws_service_discovery_service.jenkins.id
+  description = "ARN of the Jenkins service discovery service"
+  value       = aws_service_discovery_service.jenkins.arn
 }
 
 output "service_discovery_n8n_service_id" {
-  description = "ID of the n8n service discovery service"
-  value       = aws_service_discovery_service.n8n.id
+  description = "ARN of the n8n service discovery service"
+  value       = aws_service_discovery_service.n8n.arn
 }

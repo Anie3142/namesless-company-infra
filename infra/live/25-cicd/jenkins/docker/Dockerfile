@@ -43,7 +43,8 @@ USER jenkins
 
 # Skip setup wizard
 ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false -Xmx1g"
-ENV CASC_JENKINS_CONFIG="/var/jenkins_home/jenkins.yaml"
+# Use config from Docker image (not EFS) to ensure updates are applied
+ENV CASC_JENKINS_CONFIG="/usr/share/jenkins/ref/jenkins.yaml"
 
 # Install plugins
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt

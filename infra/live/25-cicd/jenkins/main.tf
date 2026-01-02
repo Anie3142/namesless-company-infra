@@ -323,6 +323,15 @@ resource "aws_ecs_task_definition" "jenkins" {
         }
       ]
 
+      # Traefik labels for auto-discovery
+      # This enables automatic routing through Traefik without manual Service Discovery updates
+      dockerLabels = {
+        "traefik.enable"                                      = "true"
+        "traefik.http.routers.jenkins.rule"                   = "Host(`jenkins.namelesscompany.cc`)"
+        "traefik.http.routers.jenkins.entrypoints"            = "web"
+        "traefik.http.services.jenkins.loadbalancer.server.port" = "8080"
+      }
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {

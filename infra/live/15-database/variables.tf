@@ -41,3 +41,22 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# -----------------------------------------------------------------------------
+# App-Specific Databases
+# -----------------------------------------------------------------------------
+
+variable "app_databases" {
+  description = "Map of applications that need database access. Each app will get an SSM parameter with its DATABASE_URL"
+  type = map(object({
+    database_name = string
+  }))
+  default = {
+    "personal-finance" = {
+      database_name = "personal_finance"
+    }
+    "hello-django" = {
+      database_name = "hello_django"
+    }
+  }
+}

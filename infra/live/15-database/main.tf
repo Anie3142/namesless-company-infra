@@ -15,6 +15,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+    postgresql = {
+      source  = "cyrilgdn/postgresql"
+      version = "~> 1.21"
+    }
   }
 
   backend "s3" {
@@ -126,4 +130,59 @@ module "postgres" {
   skip_final_snapshot = true
 
   tags = var.tags
+}
+
+# =============================================================================
+# App-Specific Database SSM Parameters
+# =============================================================================
+# These SSM parameters store DATABASE_URLs for each application
+# The format uses postgresql:// (Django compatible) with URL-encoded password
+# 
+# NOTE: PostgreSQL provider requires network access to RDS. Since RDS is in 
+# private subnets, you may need to create databases manually via:
+#   - psql from a bastion host
+#   - Running a one-time ECS task
+#   - SSH tunnel through NAT instance
+# =============================================================================
+
+locals {
+  # URL-encode the password for use in DATABASE_URL
+  db_password_encoded = urlencode(random_password.db_password.result)
+  db_host             = module.postgres.address
+  db_port             = module.postgres.port
+  db_username         = "postgres"
+  
+  # List of app databases to create SSM parameters for
+  app_databases = var.app_databases
+}
+
+# Create SSM parameters for each app's DATABASE_URL
+resource "aws_ssm_parameter" "app_database_urls" {
+  for_each = local.app_databases
+
+  name        = "/${var.project_name}/${each.key}/database-url"
+  description = "DATABASE_URL for ${each.key} application"
+  type        = "SecureString"
+  value       = "postgresql://${local.db_username}:${local.db_password_encoded}@${local.db_host}:${local.db_port}/${each.value.database_name}"
+  overwrite   = true  # Allow updating existing parameters
+
+  tags = {
+    Name        = "${var.project_name}-${each.key}-database-url"
+    Application = each.key
+  }
+}
+
+# =============================================================================
+# N8N DATABASE_URL (for n8n app compatibility)
+# =============================================================================
+resource "aws_ssm_parameter" "n8n_database_url" {
+  name        = "/${var.project_name}/n8n/database-url"
+  description = "DATABASE_URL for n8n"
+  type        = "SecureString"
+  value       = "postgresql://${local.db_username}:${local.db_password_encoded}@${local.db_host}:${local.db_port}/n8n"
+
+  tags = {
+    Name        = "${var.project_name}-n8n-database-url"
+    Application = "n8n"
+  }
 }

@@ -47,6 +47,26 @@ data "terraform_remote_state" "network" {
   }
 }
 
+data "terraform_remote_state" "cloudflare" {
+  backend = "s3"
+
+  config = {
+    bucket = "nameless-terraform-state"
+    key    = "live/05-cloudflare/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+
+data "terraform_remote_state" "traefik" {
+  backend = "s3"
+
+  config = {
+    bucket = "nameless-terraform-state"
+    key    = "live/27-traefik/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+
 # -----------------------------------------------------------------------------
 # Cloudflare IP Ranges (for ALB Security Group)
 # Source: https://www.cloudflare.com/ips/
@@ -123,9 +143,9 @@ module "ecs_ec2_cluster" {
 # For Jenkins controller and build workloads - separate from apps
 # -----------------------------------------------------------------------------
 
-# Get ECS AMI for CI instances
+# Get ECS AMI for CI instances (using amd64 for easier local development builds)
 data "aws_ssm_parameter" "ecs_ami_ci" {
-  name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id"
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id"
 }
 
 # Security Group for CI ECS instances
@@ -141,6 +161,26 @@ resource "aws_security_group" "ecs_ci" {
     to_port         = 65535
     protocol        = "tcp"
     security_groups = [module.alb.alb_security_group_id]
+  }
+
+  # Allow inbound from Cloudflared on port 8080 (Jenkins)
+  # This enables Cloudflare Tunnel to reach Jenkins via Service Discovery
+  ingress {
+    description     = "Allow Jenkins from Cloudflared"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [data.terraform_remote_state.cloudflare.outputs.cloudflared_security_group_id]
+  }
+
+  # Allow inbound from Traefik on port 8080 (Jenkins)
+  # This enables Traefik to proxy traffic to Jenkins via ECS provider auto-discovery
+  ingress {
+    description     = "Allow Jenkins from Traefik"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [data.terraform_remote_state.traefik.outputs.traefik_security_group_id]
   }
 
   # All outbound (for NAT)
