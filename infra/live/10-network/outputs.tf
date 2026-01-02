@@ -27,6 +27,11 @@ output "private_subnet_cidrs" {
   value       = module.networking.private_subnet_cidrs
 }
 
+output "public_subnet_cidrs" {
+  description = "List of public subnet CIDR blocks (for bastion access)"
+  value       = module.networking.public_subnet_cidrs
+}
+
 output "nat_instance_id" {
   description = "ID of the NAT instance"
   value       = module.nat_instance.nat_instance_id

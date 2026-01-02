@@ -49,3 +49,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "admin_ip_addresses" {
+  description = "List of admin IP addresses allowed to SSH into bastion (NAT instance) for database access"
+  type        = list(string)
+  default     = ["95.91.247.129"]  # Add your home/office IP addresses here
+}

@@ -11,6 +11,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
   backend "s3" {
@@ -50,7 +54,7 @@ module "networking" {
 }
 
 # -----------------------------------------------------------------------------
-# NAT Instance Module
+# NAT Instance Module (also acts as bastion host for DB access)
 # -----------------------------------------------------------------------------
 module "nat_instance" {
   source = "../../modules/nat-instance"
@@ -61,6 +65,7 @@ module "nat_instance" {
   public_subnet_id        = module.networking.public_subnet_ids[0]
   private_route_table_ids = module.networking.private_route_table_ids
   instance_type           = var.nat_instance_type
+  admin_ip_addresses      = var.admin_ip_addresses
 
   tags = var.tags
 }

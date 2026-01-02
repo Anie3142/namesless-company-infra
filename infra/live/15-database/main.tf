@@ -107,8 +107,13 @@ module "postgres" {
   vpc_id     = data.terraform_remote_state.network.outputs.vpc_id
   subnet_ids = data.terraform_remote_state.network.outputs.private_subnet_ids
 
-  # Allow connections from private subnets (where ECS tasks run)
-  allowed_cidr_blocks = data.terraform_remote_state.network.outputs.private_subnet_cidrs
+  # Allow connections from:
+  # - Private subnets (where ECS tasks run)
+  # - Public subnets (for bastion/SSH tunnel access)
+  allowed_cidr_blocks = concat(
+    data.terraform_remote_state.network.outputs.private_subnet_cidrs,
+    data.terraform_remote_state.network.outputs.public_subnet_cidrs
+  )
 
   # Instance configuration
   instance_class        = var.db_instance_class
